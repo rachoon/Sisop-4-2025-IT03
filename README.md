@@ -3,7 +3,7 @@
 ## soal_1
 
 ## soal_2
-Pada soal ini, program dapat menyatukan beberapa file yang terpecah menjadi 14 bagian dengan format `.000`, `.001`, sampai `.014`. 
+Pada soal ini, program dapat menyatukan beberapa file yang terpecah menjadi 14 bagian dengan format `.000`, `.001`, sampai `.013`. 
 
 ### A. `baymax_getattr`
 Pertama-tama, kita perlu mendapatkan atribut file berdasarkan path yuang diminta. Untuk kodenya seperti ini
@@ -120,6 +120,22 @@ Dimana untuk cara kerjanya seperti ini.
 7. Lalu, fungsi `if()` dijalankan. Jika syarat terpenuhi, maka karakter terakhir ditambahkan null terminator berupa `'\0'`.
 8. Karena sebuah file virtual mungkin terdiri dari banyak fragmen (misalnya `document.000`, `document.001`, `document.002`), kita tidak ingin menampilkan document berkali-kali di direktori FUSE. Kode ini memeriksa apakah nama file (setelah dipotong ekstensi fragmen) sudah ada di array files yang menyimpan nama-nama unik. Jika belum ada, nama tersebut disalin ke files dan file_count ditingkatkan.
 9. Setelah loop pembacaan direktori `relics` selesai dan semua file unik dikumpulakn di array `files`, maka kode `filler(buf, files[i], NULL, 0)` digunakan untuk menambahkan nama file ke buffer yang akan dikembalikan oleh FUSE.
-10. `free(files[i]` digunakan untuk membersihkan memori untuk emnghindari terjadinya memory leak.
+10. `free(files[i]` digunakan untuk membersihkan memori untuk menghindari terjadinya memory leak.
+
+### C. `baymax_open()`
+Pada fungsi ini, program akan membuka file virtual dalam FUSE. Untuk kodenya seperti ini.
+`
+static int baymax_open(const char *path, struct fuse_file_info *fi) {
+    char *filename = basename(strdup(path + 1));
+    log_activity("READ", filename);
+    free(filename);
+    return 0;
+}
+`
+Dimana untuk log_activity akan dijabarkan pada ... .
+
+### D. `baymax_read()`
+Fungsi ini diperlukan untuk membaca file. Perbedaannya dengan `baymax_readdir` terletak pada jenis entitas yang dibaca. pada `baymax_readdir`, FUSE akan membaca sebuah dir, sedangkan pada `baymax_read` akan membaca sebuah file. Untuk kodenya seperti ini
+
 ## soal_3
 ## soal_4 
