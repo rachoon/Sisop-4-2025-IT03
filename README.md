@@ -239,6 +239,31 @@ Dimana cara kerjanya sebagai berikut.
 5. Setelah semua fragmen dihapus, memori yang dialokasikan akan dibebaskan untuk menghindari terjadinya memory leak.
 6. Fungsi mengembalikan 0 jika penghapusan file di mountpoint berhasil.
 
-### F. 
+### F. `baymax_create()`
+Fungsi ini digunakan untuk membuat file, untuk kodenya seperti ini
+```
+static int baymax_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+    char *filename = basename(strdup(path + 1));
+    char fragment_path[PATH_MAX];
+    snprintf(fragment_path, sizeof(fragment_path), "%s/%s.000", options.relics_dir, filename);
+    int fd = open(fragment_path, O_CREAT | O_EXCL | O_WRONLY, mode);
+    if (fd == -1) {
+        free(filename);
+        return -errno;
+    }
+    close(fd);
+    log_activity("CREATE", filename);
+    free(filename);
+    return 0;
+}
+```
+Dimana untuk cara kerjanya sebagai berikut.
+1. Fungsi mendapatkan nama file dasar yang diminta untuk dibuat di path.
+2. Fungsi membuat path lengkap.
+3. Fungsi `open()` dipanggil untuk membuat file fisik fragmen `.000` di lokasi `relics`, dengan bendera O_CREAT (buat jika tidak ada), `O_EXCL` (error jika sudah ada), dan `O_WRONLY` (hanya tulis), serta mode izin yang diberikan (`mode`).
+4. Jika `fd` bernilai `-1`, maka memori dibersihkan dan mengembalikan error berupa `-errno`.
+5. Setleh file berhasil dibuat, maka `fd` akan ditutup menggunakan `close(fd)`.
+6. Setelah itu, fungsi mencatat log jika berhasil.
+7. Terakhir, memori dibersihkan untuk menghindari terjadinya memory leak.
 ## soal_3
 ## soal_4 
