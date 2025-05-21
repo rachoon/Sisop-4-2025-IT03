@@ -5,7 +5,7 @@
 ## soal_2
 Pada soal ini, program dapat menyatukan beberapa file yang terpecah menjadi 14 bagian dengan format `.000`, `.001`, sampai `.014`. 
 
-### `getattr`
+### A. `baymax_getattr`
 Pertama-tama, kita perlu mendapatkan atribut file berdasarkan path yuang diminta. Untuk kodenya seperti ini
 
 ```
@@ -60,6 +60,8 @@ Untuk cara kerjanya seperti ini.
 6. Jika file tidak ada, maka akan muncul error dengan kode `-ENOENT`.
 7. Memori dibersihakn untuk menghindari terjadinya memory leak.
 8. Program akan return 0 jika berhasil (`return res`).
+
+### B. `baymax_readdir`
 
 ## soal_3
 ## soal_4 
