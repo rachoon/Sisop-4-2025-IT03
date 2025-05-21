@@ -132,7 +132,7 @@ static int baymax_open(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 ```
-Dimana untuk log_activity akan dijabarkan pada ... .
+Dimana untuk log_activity akan dijabarkan pada poin K.
 
 ### D. `baymax_read()`
 Fungsi ini diperlukan untuk membaca file. Perbedaannya dengan `baymax_readdir` terletak pada jenis entitas yang dibaca. pada `baymax_readdir`, FUSE akan membaca sebuah dir, sedangkan pada `baymax_read` akan membaca sebuah file. Untuk kodenya seperti ini
@@ -412,6 +412,62 @@ Dimana untuk cara kerjanya sebagai berikut.
 6. Fungsi mengembalikan 0 untuk menunjukkan operasi penutupan file berhasil.
 
 ### K. `log_activity()`
-Fungsi ini digunakan untuk 
+Fungsi ini digunakan untuk mencatat beberapa fungsi yang berhasil dijalankan. Untuk kodenya seperti ini.
+Dimana untuk cara kerjanya sebagai berikut.
+```
+void log_activity(const char *action, const char *details) {
+    time_t now;
+    struct tm tm_info;
+    char timestamp[64];
+    time(&now);
+    localtime_r(&now, &tm_info);
+    strftime(timestamp, sizeof(timestamp), "[%Y-%m-%d %H:%M:%S]", &tm_info);
+    FILE *log = fopen(LOG_FILE, "a");
+    if (log == NULL) {
+        perror("Failed to open log file");
+        return;
+    }
+    fprintf(log, "%s %s: %s\n", timestamp, action, details);
+    fclose(log);
+}
+```
+1. Pertama, fungsi ini mengambil waktu saat ini dan memformatnya menjadi timestamp.
+2. Lalu, fungsi membuka file log bernama activity.log dalam mode append, yang berarti tulisan baru akan ditambahkan di akhir file.
+3. Jika file gagal dibuka, fungsi akan menampilkan pesan error.
+4. Selanjutnya, fungsi mencatat aktivitas dengan menuliskan timestamp, jenis tindakan, dan detailnya ke dalam file log.
+5. Terakhir, fungsi menutup file log untuk memastikan semua data tersimpan dengan benar.
+
+### L. `get_fragments()`
+Fungsi ini digunakan untuk menemukan semua fragmen file yang terkait dengan sebuah nama file dasar. Fungsi ini bertugas mengumpulkan daftar semua nama fragmen tersebut agar konten file asli dapat dibaca atau dimanipulasi secara keseluruhan. Untuk kodenya seperti ini
+```
+int get_fragments(const char *filename, char **fragments) {
+    DIR *dir;
+    struct dirent *ent;
+    int count = 0;
+    dir = opendir(options.relics_dir);
+    if (dir != NULL) {
+        while ((ent = readdir(dir)) != NULL && count < MAX_FRAGMENTS) {
+            if (strncmp(ent->d_name, filename, strlen(filename)) == 0) {
+                char *dot = strrchr(ent->d_name, '.');
+                if (dot != NULL && strlen(dot) == 4 && isdigit(dot[1]) && isdigit(dot[2]) && isdigit(dot[3])) {
+                    fragments[count] = strdup(ent->d_name);
+                    count++;
+                }
+            }
+        }
+        closedir(dir);
+    }
+    return count;
+}
+```
+Dimana untuk cara kerjanya seperti ini.
+1. Pertama, fungsi ini membuka direktori relics_dir yang telah ditentukan.
+2. Lalu, fungsi membaca setiap entry (file atau direktori) di dalamnya.
+3. Untuk setiap entry, fungsi memeriksa apakah nama file cocok dengan nama file yang dicari dan memiliki ekstensi numerik .xxx (misalnya, .000, .001, dst.).
+4. Jika cocok, nama fragmen tersebut akan disalin ke dalam array fragments.
+5. Proses ini berlanjut hingga semua fragmen ditemukan atau batas MAX_FRAGMENTS tercapai.
+6. Terakhir, fungsi mengembalikan jumlah fragmen yang ditemukan.
+
+### M. `int main()`
 ## soal_3
 ## soal_4 
