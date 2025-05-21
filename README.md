@@ -124,18 +124,121 @@ Dimana untuk cara kerjanya seperti ini.
 
 ### C. `baymax_open()`
 Pada fungsi ini, program akan membuka file virtual dalam FUSE. Untuk kodenya seperti ini.
-`
+```
 static int baymax_open(const char *path, struct fuse_file_info *fi) {
     char *filename = basename(strdup(path + 1));
     log_activity("READ", filename);
     free(filename);
     return 0;
 }
-`
+```
 Dimana untuk log_activity akan dijabarkan pada ... .
 
 ### D. `baymax_read()`
 Fungsi ini diperlukan untuk membaca file. Perbedaannya dengan `baymax_readdir` terletak pada jenis entitas yang dibaca. pada `baymax_readdir`, FUSE akan membaca sebuah dir, sedangkan pada `baymax_read` akan membaca sebuah file. Untuk kodenya seperti ini
+```
+static int baymax_read(const char *path, char *buf, size_t size, off_t offset,
+                      struct fuse_file_info *fi) {
+    char *fragments[MAX_FRAGMENTS];
+    char *filename = basename(strdup(path + 1));
+    int count = get_fragments(filename, fragments);
+    
+    if (count == 0) {
+        free(filename);
+        return -ENOENT;
+    }
 
+    size_t total_size = 0;
+    size_t fragment_sizes[MAX_FRAGMENTS];
+
+    for (int i = 0; i < count; i++) {
+        char fragment_path[PATH_MAX];
+        snprintf(fragment_path, sizeof(fragment_path), "%s/%s", options.relics_dir, fragments[i]);
+        struct stat st;
+        if (stat(fragment_path, &st) == 0) {
+            fragment_sizes[i] = st.st_size;
+            total_size += st.st_size;
+        } else {
+            fragment_sizes[i] = 0;
+        }
+    }
+
+    size_t total_read = 0;
+    size_t current_offset = 0;
+
+    for (int i = 0; i < count && total_read < size; i++) {
+        char fragment_path[PATH_MAX];
+        snprintf(fragment_path, sizeof(fragment_path), "%s/%s", options.relics_dir, fragments[i]);
+        
+        FILE *f = fopen(fragment_path, "rb");
+        if (f) {
+            size_t fragment_size = fragment_sizes[i];
+            if (offset < current_offset + fragment_size) {
+                size_t fragment_offset = (offset > current_offset) ? offset - current_offset : 0;
+                size_t read_size = fragment_size - fragment_offset;
+                if (read_size > size - total_read)
+                    read_size = size - total_read;
+
+                if (fragment_offset < fragment_size) {
+                    fseek(f, fragment_offset, SEEK_SET);
+                    total_read += fread(buf + total_read, 1, read_size, f);
+                }
+            }
+            current_offset += fragment_size;
+            fclose(f);
+        }
+        free(fragments[i]);
+    }
+
+    free(filename);
+    return total_read;
+}
+```
+Dimana cara kerjanya sebagai berikut.
+1. `memset(stbuf, 0, sizeof(struct stat));` digunakan untuk membersihkan memori agar tidak ada sampah yang mengganggu jalannya kode.
+2. Jika path yang diminta adalah "/", artinya sistem operasi menanyakan atribut untuk direktori root.
+3. Jika path adalah file, ia mendapatkan nama file dasar dan memeriksa apakah fragmen pertamanya (.000) ada di direktori relics.
+4. Apabila fragmen .000 ditemukan, ia mulai menghitung ukuran total file virtual dengan menjumlahkan ukuran semua fragmen (.000, .001, dst.) yang terkait dengan nama file dasar tersebut.
+5. Fungsi akan menghitung ukuran file virtual dengan menjumlahkan semua fragmen yang terkait dengan nama file tersebut.
+6. Jika proses read selesai, maka memori dibersihkan untuk menghindari terjadinya memory leak.
+7. Fungsi akan me-return 0 jika berhasil.
+
+### E. `baymax_unink()`
+Fungsi ini digunakan untuk menghapus file yang ada di mountpoint. Jika file ini dihapus, maka file fisik yang terkait juga dihapus. Untuk kodenya seperti ini
+```
+static int baymax_unlink(const char *path) {
+    char *fragments[MAX_FRAGMENTS];
+    char *filename = basename(strdup(path + 1));
+    int count = get_fragments(filename, fragments);
+    if (count == 0) {
+        free(filename);
+        return -ENOENT;
+    }
+    char details[1024] = {0};
+    strcat(details, fragments[0]);
+    for (int i = 1; i < count; i++) {
+        strcat(details, " - ");
+        strcat(details, fragments[i]);
+    }
+    log_activity("DELETE", details);
+    for (int i = 0; i < count; i++) {
+        char fragment_path[PATH_MAX];
+        snprintf(fragment_path, sizeof(fragment_path), "%s/%s", options.relics_dir, fragments[i]);
+        unlink(fragment_path);
+        free(fragments[i]);
+    }
+    free(filename);
+    return 0;
+}
+```
+Dimana cara kerjanya sebagai berikut.
+1. Program mendapatkan nama file dasar dari jalur yang diminta, lalu mencari semua fragmen fisik yang menyusun file virtual tersebut.
+2. Jika fragmen tidak ditemukan, maka berarti file virtual tidak ada dan program mengembalikan error berupa `-ENOENT`.
+3. Fungsi mencatat aktivitas "DELETE" ke file log.
+4. Program kemudian mengiterasi setiap fragmen, membangun jalur lengkapnya, dan memanggil fungsi `unlink()` untuk menghapus fragmen fisik tersebut dari disk.
+5. Setelah semua fragmen dihapus, memori yang dialokasikan akan dibebaskan untuk menghindari terjadinya memory leak.
+6. Fungsi mengembalikan 0 jika penghapusan file di mountpoint berhasil.
+
+### F. 
 ## soal_3
 ## soal_4 
