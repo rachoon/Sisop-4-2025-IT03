@@ -322,5 +322,95 @@ Dimana untuk cara kerjanya sebagai berikut.
 5. Aktivitas `"UTIMENS"` dicatat ke file log.
 6. Memori yang dialokasikan dibebaskan untuk menghindari terjadinya memory leak.
 7. Fungsi mengembalikan 0 jika operasi berhasil.
+
+### I. `baymax_write()`
+ungsi ini digunakan untuk menulis data ke sebuah file dalam FUSE. Untuk kodenya seperti ini
+```
+static int baymax_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+    char *filename = basename(strdup(path + 1));
+    char base_filename[256];
+    strncpy(base_filename, filename, sizeof(base_filename) - 1);
+    base_filename[sizeof(base_filename) - 1] = '\0';
+    char log_details[PATH_MAX * 2] = {0};
+    int fragment_count = offset / FRAGMENT_SIZE;
+    size_t bytes_written = 0;
+    size_t current_offset_in_fragment = offset % FRAGMENT_SIZE;
+
+    while (bytes_written < size) {
+        char fragment_name[PATH_MAX];
+        snprintf(fragment_name, sizeof(fragment_name), "%s.%03d", base_filename, fragment_count);
+        char fragment_path[PATH_MAX];
+        snprintf(fragment_path, sizeof(fragment_path), "%s/%s", options.relics_dir, fragment_name);
+        size_t fragment_size = FRAGMENT_SIZE - current_offset_in_fragment;
+        if (size - bytes_written < fragment_size) {
+            fragment_size = size - bytes_written;
+        }
+        int fragment_fd = open(fragment_path, O_WRONLY | O_CREAT, 0644);
+        if (fragment_fd == -1) {
+            free(filename);
+            return -errno;
+        }
+        ssize_t written = pwrite(fragment_fd, buf + bytes_written, fragment_size, current_offset_in_fragment);
+        if (written == -1) {
+            close(fragment_fd);
+            free(filename);
+            return -errno;
+        }
+        close(fragment_fd);
+        bytes_written += written;
+        current_offset_in_fragment = 0;
+        fragment_count++;
+    }
+    snprintf(log_details, sizeof(log_details), "%s -> %s.000", filename, filename);
+    log_activity("WRITE", log_details);
+    free(filename);
+    return bytes_written;
+}
+```
+Dimana untuk cara kerjanya seperti ini.
+1. Program mendapatkan nama file dasar tempat data akan ditulis dari `path`.
+2. Fungsi menginisialisasi variabel untuk melacak jumlah byte yang sudah ditulis (`bytes_written`), nomor fragmen yang sedang diproses (`fragment_count`), dan offset di dalam fragmen saat ini (`current_offset_in_fragment`) berdasarkan offset permintaan.
+3. Loop utama dimulai dan terus berjalan selama masih ada data yang perlu ditulis.
+4. Di setiap iterasi, program menentukan nama fragmen yang relevan (misal: filename.000, filename.001, dst.) dan membangun jalur fisiknya.
+5. Ia menghitung ukuran data yang akan ditulis ke fragmen saat ini, memastikan tidak melebihi ukuran fragmen atau total size yang diminta.
+6. Fragmen fisik dibuka dengan bendera O_WRONLY (tulis saja) dan O_CREAT (buat jika belum ada); jika gagal, error dikembalikan.
+7. Fungsi pwrite() digunakan untuk menulis data dari buf ke fragmen fisik pada current_offset_in_fragment yang tepat, memastikan penulisan dimulai dari posisi yang benar dalam fragmen tersebut.
+8. Jika `pwrite()` gagal, error dikembalikan, dan file descriptor ditutup.
+9. Setelah penulisan berhasil pada fragmen, file descriptor ditutup, bytes_written diperbarui, current_offset_in_fragment direset ke 0 (karena fragmen berikutnya akan ditulis dari awal), dan fragment_count ditingkatkan.
+10. Setelah semua data ditulis, program mencatat aktivitas "WRITE" ke file log, dan membebaskan memori yang dialokasikan.
+11. Fungsi mengembalikan jumlah total byte yang berhasil ditulis.
+
+### J. `baymax_release()`
+Fungsi ini digunakan untuk menangani saat file ditutup setelah file tersebut dibuka. Untuk kodenya seperti ini.
+```
+static int baymax_release(const char *path, struct fuse_file_info *fi) {
+    char *filename = basename(strdup(path + 1));
+    char log_details[PATH_MAX * 3] = {0};
+    char source_path[PATH_MAX] = {0};
+    char real_mountpoint[PATH_MAX];
+    if (realpath(mountpoint_path, real_mountpoint) == NULL) {
+        strncpy(real_mountpoint, mountpoint_path, sizeof(real_mountpoint) - 1);
+        real_mountpoint[sizeof(real_mountpoint) - 1] = '\0';
+    }
+    if (snprintf(source_path, sizeof(source_path), "%s/%s", real_mountpoint, filename) >= (int)sizeof(source_path)) {
+        strncpy(source_path, real_mountpoint, sizeof(source_path) - 1);
+        source_path[sizeof(source_path) - 1] = '\0';
+        strncat(source_path, "/", sizeof(source_path) - strlen(source_path) - 1);
+        strncat(source_path, filename, sizeof(source_path) - strlen(source_path) - 1);
+    }
+   
+    free(filename);
+    return 0;
+}
+```
+Dimana untuk cara kerjanya sebagai berikut.
+1. Program mendapatkan nama file dasar yang sedang ditutup dari path.
+2. Ia mencoba mendapatkan jalur absolut (realpath) dari mount point FUSE. Jika gagal, ia menggunakan jalur mount point yang disimpan.
+3. Program kemudian mencoba membangun jalur lengkap ke file virtual tersebut di mount point (source_path). Ini mencakup penanganan potensi buffer overflow.
+4. Pada implementasi yang diberikan, tidak ada operasi signifikan yang dilakukan setelah membangun source_path (seperti pencatatan log "RELEASE" atau penyalinan file ke tujuan yang ditentukan oleh options.copy_dest_dir).
+5. Memori yang dialokasikan untuk filename dibebaskan.
+6. Fungsi mengembalikan 0 untuk menunjukkan operasi penutupan file berhasil.
+
+
 ## soal_3
 ## soal_4 
