@@ -411,6 +411,7 @@ Dimana untuk cara kerjanya sebagai berikut.
 5. Memori yang dialokasikan untuk filename dibebaskan.
 6. Fungsi mengembalikan 0 untuk menunjukkan operasi penutupan file berhasil.
 
-
+### K. `log_activity()`
+Fungsi ini digunakan untuk 
 ## soal_3
 ## soal_4 
