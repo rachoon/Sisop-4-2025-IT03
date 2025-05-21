@@ -5,7 +5,7 @@
 ## soal_2
 Pada soal ini, program dapat menyatukan beberapa file yang terpecah menjadi 14 bagian dengan format `.000`, `.001`, sampai `.013`. 
 
-### A. `baymax_getattr`
+### A. `baymax_getattr()`
 Pertama-tama, kita perlu mendapatkan atribut file berdasarkan path yuang diminta. Untuk kodenya seperti ini
 
 ```
@@ -61,7 +61,7 @@ Untuk cara kerjanya seperti ini.
 7. Memori dibersihakn untuk menghindari terjadinya memory leak.
 8. Program akan return 0 jika berhasil (`return res`).
 
-### B. `baymax_readdir`
+### B. `baymax_readdir()`
 Selanjutnya, program akan membaca file dengan fungsi ini. Untuk kodenya seperti ini
 ```
 static int baymax_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
@@ -265,5 +265,62 @@ Dimana untuk cara kerjanya sebagai berikut.
 5. Setleh file berhasil dibuat, maka `fd` akan ditutup menggunakan `close(fd)`.
 6. Setelah itu, fungsi mencatat log jika berhasil.
 7. Terakhir, memori dibersihkan untuk menghindari terjadinya memory leak.
+
+### G. `baymax_truncate()`
+Fungsi ini digunakan untuk mengubah ukuran file. Untuk kodenya sepertii ini.
+```
+static int baymax_truncate(const char *path, off_t size) {
+ char *filename = basename(strdup(path + 1));
+    char base_filename[256];
+    strncpy(base_filename, filename, sizeof(base_filename) - 1);
+    base_filename[sizeof(base_filename) - 1] = '\0';
+    char fragment_path[PATH_MAX];
+    snprintf(fragment_path, sizeof(fragment_path), "%s/%s.000", options.relics_dir, base_filename);
+
+    int res = truncate(fragment_path, size);
+     if (res == -1) {
+        free(filename);
+        return -errno;
+    }
+    log_activity("TRUNCATE", filename);
+    free(filename);
+    return 0;
+}
+```
+Dimana untuk cara kerjanya sebagai berikut.
+1. Program mendapatkan nama file dasar yang diminta untuk diubah ukurannya dari path.
+2. Nama file dasar tersebut disalin ke buffer `base_filename` untuk memastikan keamanan string dan penanganan basename yang dapat mengubah input aslinya.
+3. Fungsi membentuk jalur lengkap ke fragmen pertama file ini (`.000`) di direktori `relics`.
+4. Fungsi `truncate()` dipanggil pada fragmen fisik `.000` tersebut untuk mengubah ukurannya menjadi size yang diminta.
+5. Jika `truncate()` mengembalikan -1, berarti ada kesalahan dalam mengubah ukuran fragmen dan program mengembalikan kode error berupa `-errno`.
+6. Fungsi mencatat log truncate.
+7. Memori dibersihkan untuk menghindari terjadinya memory leak.
+8. Fungsi mengembalikan 0 jika berhasil.
+
+### H. `baymax_utiments()`
+Fungsi ini diguankan untuk mengubah waktu akses dan waktu modifikasi dari sebuah file atau direktori. Untuk kodenya seperti ini.
+```
+static int baymax_utimens(const char *path, const struct timespec tv[2]) {
+    char *filename = basename(strdup(path + 1));
+    char fragment_path[PATH_MAX];
+    snprintf(fragment_path, sizeof(fragment_path), "%s/%s.000", options.relics_dir, filename);
+    int res = utimensat(0, fragment_path, tv, AT_SYMLINK_NOFOLLOW);
+    if (res == -1) {
+        free(filename);
+        return -errno;
+    }
+    log_activity("UTIMENS", filename);
+    free(filename);
+    return 0;
+}
+```
+Dimana untuk cara kerjanya sebagai berikut.
+1. Program mendapatkan nama file dasar yang diminta untuk diubah timestamps-nya.
+2. Ia membentuk jalur ke fragmen pertama file tersebut (`.000`) di direktori `relics`.
+3. Fungsi utimensat() sistem kemudian dipanggil pada fragmen fisik `.000` tersebut untuk mengubah waktu akses dan modifikasinya.
+4. Jika ada kesalahan, program mengembalikan kode error berupa `-errno`.
+5. Aktivitas `"UTIMENS"` dicatat ke file log.
+6. Memori yang dialokasikan dibebaskan untuk menghindari terjadinya memory leak.
+7. Fungsi mengembalikan 0 jika operasi berhasil.
 ## soal_3
 ## soal_4 
