@@ -467,7 +467,101 @@ Dimana untuk cara kerjanya seperti ini.
 4. Jika cocok, nama fragmen tersebut akan disalin ke dalam array fragments.
 5. Proses ini berlanjut hingga semua fragmen ditemukan atau batas MAX_FRAGMENTS tercapai.
 6. Terakhir, fungsi mengembalikan jumlah fragmen yang ditemukan.
+### M. `static struct fuse_opt option_specs[]`
+Fungsi dari `static struct fuse_opt option_specs[]` adalah menentukan opsi-opsi baris perintah yang bisa digunakan oleh filesystem FUSE, seperti direktori relik, direktori tujuan salinan, dan nama file tujuan. Untuk kodenya seperti ini.
+```
+static struct fuse_opt option_specs[] = {
 
-### M. `int main()`
+    OPTION("--relics-dir=%s", relics_dir),
+
+    OPTION("--copy-dest=%s", copy_dest_dir),
+
+    OPTION("--dest-filename=%s", dest_filename),
+
+    FUSE_OPT_END
+
+};
+```
+
+### N. Fungsi `find_mountpoint()`
+Fungsi ini diguankan untuk mencari mountpoint. Untuk kodenya seperti ini
+```
+static void find_mountpoint(int argc, char *argv[]) {
+
+    for (int i = argc - 1; i > 0; i--) {
+
+        if (argv[i][0] != '-') {
+
+            strncpy(mountpoint_path, argv[i], sizeof(mountpoint_path) - 1);
+
+            mountpoint_path[sizeof(mountpoint_path) - 1] = '\0';
+
+            size_t len = strlen(mountpoint_path);
+
+            if (len > 1 && mountpoint_path[len - 1] == '/') {
+
+                mountpoint_path[len - 1] = '\0';
+
+            }
+
+            break;
+
+        }
+
+    }
+
+}
+```
+Dimana untuk cara kerjanya sebagai berikut.
+1. Fungsi mencari mountpoint Fungsi ini mencari argumen terakhir di baris perintah yang tidak diawali dengan tanda strip (-).
+2. Setelah itu, fungsi menyimpan path Argumen yang ditemukan ini dianggap sebagai mountpoint dan disimpan ke mountpoint_path.
+3. Fungsi menghilangkan garis miring Jika path berakhir dengan garis miring (/), garis miring itu dihilangkan untuk normalisasi.
+4. Terakhir, fungsi mengakhiri pencarian Setelah mountpoint ditemukan, proses pencarian dihentikan.
+
+### O. `int_main()`
+Untuk int_main sendiri berisi inisialisasi, fing_mountpoint, fuse_operation, fungsi dari FUSE itu sendiri, dan pembersihan memori agar tidak terjadi memory leak. Untuk kodenya seperti ini.
+```
+int main(int argc, char *argv[]) {
+    struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
+    options.relics_dir = strdup("relics");
+    options.copy_dest_dir = NULL;
+    options.dest_filename = NULL;
+    if (fuse_opt_parse(&args, &options, option_specs, NULL) == -1)
+        return 1;
+    find_mountpoint(args.argc, args.argv);
+    mkdir(options.relics_dir, 0777);
+
+    static struct fuse_operations baymax_oper = {
+        .getattr    = baymax_getattr,
+        .readdir    = baymax_readdir,
+        .open       = baymax_open,
+        .read       = baymax_read,
+        .unlink     = baymax_unlink,
+        .create     = baymax_create,
+        .truncate   = baymax_truncate,
+        .utimens    = baymax_utimens,
+        .write      = baymax_write,
+        .release = baymax_release
+    };
+
+    int ret = fuse_main(args.argc, args.argv, &baymax_oper, NULL);
+
+    free(options.relics_dir);
+    if (options.copy_dest_dir)
+        free(options.copy_dest_dir);
+    if (options.dest_filename)
+        free(options.dest_filename);
+
+    return ret;
+}
+```
+Untuk cara kerjanya sebagai berikut.
+1. Pertama, program menyiapkan argumen dan opsi FUSE dari baris perintah.
+2. Lalu, program menentukan titik mount dan memastikan direktori "relics" ada.
+3. Setelah itu, program mendefinisikan cara filesystem akan berinteraksi (baca, tulis, dan sebagainya).
+4. Kemudian, program menjalankan FUSE, membuat filesystem virtual berfungsi.
+5. Terakhir, program membersihkan memori setelah sistem file tidak lagi digunakan.
+
+
 ## soal_3
 ## soal_4 
