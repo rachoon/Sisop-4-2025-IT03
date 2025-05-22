@@ -564,4 +564,292 @@ Untuk cara kerjanya sebagai berikut.
 
 
 ## soal_3
+
+pada soal kali ini kita diminta untuk membuat sebuah program yang dapat mendeteksi file berbahaya kemudian membalikan nama file tersebut  lalu mencetak log serta mengenkriipsi file yang tidak berbahaya dengan ROT13
+
+<h3>
+    antink.c
+</h3>
+
+```c
+#define FUSE_USE_VERSION 30
+```
+Mengaktifkan penggunaan FUSE versi 3.0 (FUSE_USE_VERSION 30)
+
+```c
+void rot13(char *str) {
+    for (; *str; ++str) {
+        if ((*str >= 'a' && *str <= 'm') || (*str >= 'A' && *str <= 'M')) {
+            *str += 13;
+        } else if ((*str >= 'n' && *str <= 'z') || (*str >= 'N' && *str <= 'Z')) {
+            *str -= 13;
+        }
+    }
+}
+```
+<li> Mengubah huruf alfabet menjadi bentuk ROT13 (menggeser 13 karakter) </li>
+<li> hanya berlaku untuk file non-berbahaya saat dibaca. </li>
+
+```c
+void reverse_string(char *str) {
+    if (!str) return;
+    int i = 0, j = strlen(str) - 1;
+    while (i < j) {
+        char c = str[i];
+        str[i++] = str[j];
+        str[j--] = c;
+    }
+}
+```
+Membalikkan isi string, digunakan untuk menampilkan nama file berbahaya dalam kondisi terbalik.
+
+```c
+int is_dangerous(const char *filename) {
+    return strstr(filename, KEYWORD1) || strstr(filename, KEYWORD2);
+}
+```
+Mengembalikan nilai true jika nama file mengandung "nafis" atau "kimcun".
+
+```c
+void log_activity(const char *filename, const char *action) {
+    FILE *log = fopen(LOG_FILE, "a");
+    if (log) {
+        time_t now = time(NULL);
+        fprintf(log, "[%s] %s: %s\n", ctime(&now), action, filename);
+        fclose(log);
+    }
+}
+```
+Membuka file log /var/log/it24.log lalu menuliskan waktu, aksi (DANGEROUS_FILE), dan nama file.
+
+getattr
+```c
+static int antink_getattr(const char *path, struct stat *st) {
+    char full_path[MAX_PATH_LEN];
+    snprintf(full_path, sizeof(full_path), "/it24_host%s", path);
+    return lstat(full_path, st) ? -errno : 0;
+}
+
+```
+<li>Menyediakan metadata file seperti ukuran, mode, dll.</li>
+<li>File asli dicari di /it24_host.</li>
+
+readdir
+```c
+static int antink_readdir(const char *path, void *buf, fuse_fill_dir_t filler, 
+                         off_t offset, struct fuse_file_info *fi) {
+    DIR *dp;
+    struct dirent *de;
+    char full_path[MAX_PATH_LEN];
+    
+    snprintf(full_path, sizeof(full_path), "/it24_host%s", path);
+    if (!(dp = opendir(full_path))) return -errno;
+
+    while ((de = readdir(dp))) {
+        struct stat st;
+        memset(&st, 0, sizeof(st));
+        st.st_ino = de->d_ino;
+        st.st_mode = de->d_type << 12;
+
+        char disp_name[MAX_PATH_LEN];
+        strcpy(disp_name, de->d_name);
+
+        if (is_dangerous(de->d_name)) {
+            reverse_string(disp_name);
+            log_activity(de->d_name, "DANGEROUS_FILE");
+        }
+
+        if (filler(buf, disp_name, &st, 0)) break;
+    }
+    closedir(dp);
+    return 0;
+}
+```
+
+<li>Menyediakan metadata file seperti ukuran, mode, dll.</li>
+<li>File asli dicari di /it24_host.</li>
+<li>Membuka direktori /it24_host/<path>.</li>
+<li>Untuk setiap entry file/direktori:<br>
+Disiapkan info stat-nya <br>
+Nama file disalin ke buffer disp_name</li>
+<li>Jika berbahaya:
+<br>
+Nama file dibalik
+<br>
+Dicatat ke log</li>
+<li>Mengisi hasil isi direktori yang ditampilkan ke user</li>
+
+Struktur fuse_operations
+```c
+static struct fuse_operations antink_ops = {
+    .getattr = antink_getattr,
+    .readdir = antink_readdir,
+    .open = antink_open,
+    .read = antink_read,
+};
+```
+Struktur fuse_operations adalah tabel fungsi callback yang memberitahu FUSE bagaimana menangani operasi sistem file tertentu.
+Setiap entri di struktur ini mengarah ke fungsi handler yang telah kita implementasikan.
+
+<table border="1">
+  <thead>
+    <tr>
+      <th>Baris</th>
+      <th>Makna</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>.getattr = antink_getattr,</code></td>
+      <td>Digunakan untuk menangani permintaan metadata file, misalnya saat user menjalankan <code>ls -l</code> atau <code>stat</code>. FUSE akan memanggil <code>antink_getattr()</code> untuk mengisi informasi seperti ukuran file, permission, dll.</td>
+    </tr>
+    <tr>
+      <td><code>.readdir = antink_readdir,</code></td>
+      <td>Digunakan saat user ingin melihat isi direktori, misalnya dengan <code>ls</code>. Fungsi <code>antink_readdir()</code> akan memberikan daftar nama file dan folder di direktori tersebut.</td>
+    </tr>
+    <tr>
+      <td><code>.open = antink_open,</code></td>
+      <td>Digunakan saat user mencoba membuka file. Fungsi <code>antink_open()</code> memverifikasi bahwa file bisa dibuka, dan menyiapkan file descriptor.</td>
+    </tr>
+    <tr>
+      <td><code>.read = antink_read,</code></td>
+      <td>Digunakan saat user membaca file. Fungsi <code>antink_read()</code> akan membaca isi file dari sistem file backend dan memberikan hasilnya (yang bisa dimodifikasi, seperti ROT13).</td>
+    </tr>
+  </tbody>
+</table>
+
+Fungsi main()
+
+```c
+int main(int argc, char *argv[]) {
+    umask(0);
+    return fuse_main(argc, argv, &antink_ops, NULL);
+}
+```
+Fungsi dan Tujuan:
+Fungsi main() adalah titik awal program seperti biasa. Di dalamnya kita memanggil fuse_main() yang akan:
+<br>
+Menyambungkan sistem file kita ke mount point
+<br>
+Menangani request dari user (melalui kernel)
+<br>
+Menjalankan loop yang menunggu dan merespon operasi sistem file.
+
+<h3>
+    Dockerfile
+</h3>
+
+```dockerfile
+FROM ubuntu:22.04
+```
+Menggunakan image dasar Ubuntu versi 22.04.
+<br>
+Ini adalah sistem operasi minimal yang cocok untuk membangun dan menjalankan aplikasi berbasis FUSE (Filesystem in Userspace).
+
+```dockerfile
+RUN apt-get update && \
+    apt-get install -y \
+    fuse \
+    libfuse-dev \
+    gcc \
+    make \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+```
+<ul>
+  <li> <code>apt-get update</code>: Memperbarui daftar paket.</li>
+  <li> <code>apt-get install -y</code>: Menginstal beberapa dependensi penting:
+    <ul>
+      <li><code>fuse</code>: Binary utama untuk menjalankan filesystem FUSE.</li>
+      <li><code>libfuse-dev</code>: Header dan library untuk mengembangkan aplikasi berbasis FUSE.</li>
+      <li><code>gcc</code>: Compiler C yang digunakan untuk menyusun program <code>antink.c</code>.</li>
+      <li><code>make</code>: Utilitas build system (meskipun tidak digunakan langsung di Dockerfile ini).</li>
+      <li><code>pkg-config</code>: Digunakan untuk mencari informasi build library (bisa membantu saat build proyek yang kompleks).</li>
+    </ul>
+  </li>
+  <li> <code>rm -rf /var/lib/apt/lists/*</code>: Membersihkan cache apt untuk mengurangi ukuran image Docker.</li>
+</ul>
+
+```dockerfile
+WORKDIR /app
+COPY antink.c .
+RUN gcc antink.c -o antink -D_FILE_OFFSET_BITS=64 -lfuse
+HEALTHCHECK --interval=5s --timeout=3s --retries=3 \
+  CMD ls /antink_mount && [ -f /var/log/it24.log ]
+```
+Menetapkan direktori kerja menjadi /app.
+Semua perintah selanjutnya akan dijalankan dari folder ini.
+
+<br>
+
+Menyalin file sumber antink.c dari direktori lokal ke folder /app di dalam container.
+<br>
+Menyusun program antink.c menggunakan gcc.
+<br>
+-o antink: Outputnya adalah file binary bernama antink.
+<br>
+-D_FILE_OFFSET_BITS=64: Flag penting agar filesystem bisa menangani file besar (>2GB).
+<br>
+-lfuse: Melink ke library FUSE. Catatan: karena image Ubuntu ini menggunakan libfuse2, kita pakai -lfuse, bukan -lfuse3.
+
+
+```dockerfile
+HEALTHCHECK --interval=5s --timeout=3s --retries=3 \
+  CMD ls /antink_mount && [ -f /var/log/it24.log ]
+CMD ["/app/antink", "-f", "/antink_mount"]
+```
+
+Penambahan health check pada container bertujuan untuk memastikan bahwa sistem berjalan dengan benar. Container dianggap sehat jika direktori mount /antink_mount dapat diakses, yang menandakan bahwa sistem FUSE aktif, dan jika file log /var/log/it24.log telah dibuat, menunjukkan bahwa program utama sudah berjalan dan melakukan logging. Pemeriksaan dilakukan secara berkala setiap 5 detik, dengan batas waktu (timeout) 3 detik, dan akan dicoba hingga 3 kali sebelum container dinyatakan gagal. Saat container dimulai, perintah utama yang dijalankan adalah menjalankan program antink dengan flag -f, yang memastikan program berjalan di foreground mode—hal ini penting dalam konteks Docker agar proses utama tidak berjalan sebagai daemon. Direktori /antink_mount berfungsi sebagai mount point FUSE dan harus dipastikan sudah tersedia di host atau di dalam container saat eksekusi.
+
+<h3>docker-compose.yml </h3>
+File ini mendefinisikan dua container layanan: antink-server dan antink-logger. Container ini bekerja bersama untuk menjalankan filesystem berbasis FUSE (antink) dan mengakses log-nya secara terpisah.
+
+```yml
+version: '3.8'
+```
+Menentukan versi docker-compose schema yang digunakan (3.8) — stabil dan kompatibel dengan Docker Desktop dan Docker Engine terbaru.
+
+```yml
+services:
+  antink-server:
+    build: .
+    container_name: antink-server
+    privileged: true
+    volumes:
+      - ./it24_host:/it24_host
+      - ./antink_mount:/antink_mount:rshared
+      - ./antink-logs:/var/log
+```
+Membangun image dari Dockerfile yang berada di direktori saat ini (.).
+<br>
+Menetapkan nama container menjadi antink-server.
+<br>
+Mengaktifkan akses istimewa penuh ke host. Wajib untuk filesystem FUSE agar bisa mount/akses /dev/fuse.
+<br>
+Mount direktori lokal ke dalam container:
+<ul>
+  <li><code>./it24_host</code>: Sumber file nyata di host.</li>
+  <li><code>./antink_mount</code>: Tempat filesystem FUSE dimount oleh <code>antink</code>.</li>
+  <li><code>:rshared</code>: Opsi <em>mount propagation</em> agar perubahan mount terlihat oleh host atau container lain. Penting untuk FUSE agar berfungsi dengan benar.</li>
+  <li><code>./antink-logs</code>: Folder di host untuk menyimpan file log dari container, yaitu <code>/var/log/it24.log</code>.</li>
+</ul>
+
+```yml
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    restart: unless-stopped
+  antink-logger:
+    image: alpine:latest
+    container_name: antink-logger
+    volumes:
+      - ./antink-logs:/var/log
+    depends_on:
+      antink-server:
+        condition: service_healthy
+    restart: unless-stopped
+```
+
+Bagian ini mengatur konfigurasi lanjutan untuk dua layanan. Pada antink-server, opsi cap_add: - SYS_ADMIN memberi hak administratif ke container agar dapat melakukan operasi mount FUSE, sementara devices: - /dev/fuse memberi akses langsung ke perangkat FUSE di host. Opsi restart: unless-stopped memastikan container akan otomatis dimulai ulang kecuali dihentikan secara manual. Layanan antink-logger menggunakan image ringan alpine:latest, dan diberi akses ke volume log yang sama (./antink-logs:/var/log) agar dapat membaca log aktivitas dari antink-server. depends_on dengan condition: service_healthy memastikan antink-logger hanya berjalan setelah antink-server dipastikan sehat oleh healthcheck, menjaga urutan inisialisasi layanan dengan benar.
 ## soal_4 
