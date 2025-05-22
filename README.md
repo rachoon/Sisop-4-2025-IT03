@@ -854,7 +854,8 @@ Mount direktori lokal ke dalam container:
 Bagian ini mengatur konfigurasi lanjutan untuk dua layanan. Pada antink-server, opsi cap_add: - SYS_ADMIN memberi hak administratif ke container agar dapat melakukan operasi mount FUSE, sementara devices: - /dev/fuse memberi akses langsung ke perangkat FUSE di host. Opsi restart: unless-stopped memastikan container akan otomatis dimulai ulang kecuali dihentikan secara manual. Layanan antink-logger menggunakan image ringan alpine:latest, dan diberi akses ke volume log yang sama (./antink-logs:/var/log) agar dapat membaca log aktivitas dari antink-server. depends_on dengan condition: service_healthy memastikan antink-logger hanya berjalan setelah antink-server dipastikan sehat oleh healthcheck, menjaga urutan inisialisasi layanan dengan benar.
 ## soal_4 
 Pada soal ini kita mendapatkan pekerjaan di SEGA sebagai chart designer untuk game maimai. Setelah itu kita dipromosikan menjadi **administrator** untuk sistem in-game mereka. Kita disuruh untuk membuat:
-a. Starter Chiho yang merupakan area pertama yang ada di unoverse maimai.<br>
+<br>
+a. Starter Chiho yang merupakan area pertama yang ada di universe maimai.<br>
 b. World's End Area yang berisi Metropolis.<br>
 c. World Tree Area yang berisi Dragon Chiho.<br>
 d. Black Rose Area untuk menyimpan data dalam format biner murni.<br>
