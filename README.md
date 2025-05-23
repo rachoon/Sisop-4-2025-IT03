@@ -861,4 +861,72 @@ c. World Tree Area yang berisi Dragon Chiho.<br>
 d. Black Rose Area untuk menyimpan data dalam format biner murni.<br>
 e. Tenkai Area yang berisi Heaven Chiho.<br>
 f. Youth Area yang berisi Skystreet Chiho.<br>
-g. Prism Area yang 7sRef Chiho.
+g. Prism Area yang 7sRef Chiho.</br>
+
+
+
+> Hanya beberapa area yang telah diimplementasikan secara fungsional: `starter`, `metro`, `dragon`, dan `7sref`.
+
+---
+
+## 🌐 Area dan Perlakuan Khusus
+
+### 🟢 `starter/`
+- File yang dibuat tanpa ekstensi otomatis dianggap berekstensi `.mai`.
+- File ditampilkan tanpa `.mai` saat dibaca di FUSE.
+- Contoh:
+  - File asli: `starter/lagu.mai`
+  - Ditampilkan di FUSE: `lagu`
+
+---
+
+### 🟡 `metro/`
+- Nama file disimpan dengan **Caesar Cipher** (pergeseran huruf +1).
+- Saat membaca, nama file dikembalikan ke bentuk semula (pergeseran -1).
+- Contoh:
+  - Input user: `metro/hello.txt`
+  - Disimpan sebagai: `ifmmp.uyu` di direktori asli
+
+---
+
+### 🔵 `dragon/`
+- Isi file disimpan dalam format terenkripsi **ROT13**.
+- Penulisan dan pembacaan file otomatis meng-enkripsi dan dekripsi isi.
+- Contoh:
+  - Menyimpan `"abc"` → File berisi `"nop"`
+  - Membaca file → Kembali jadi `"abc"`
+
+---
+
+### 🔴 `7sref/`
+- Direktori referensi virtual untuk semua area lain.
+- Format file: `area_namafile` (misalnya `starter_lagu`)
+- Hanya mendukung **read-only** (tidak bisa menulis atau membuat file).
+- Menampilkan daftar file dari semua area yang valid untuk direferensikan.
+
+---
+
+## ⚙️ Fitur Umum
+
+- Transformasi nama dan isi dilakukan secara otomatis saat baca/tulis.
+- Fungsi yang diimplementasikan:
+  - `getattr`, `readdir`, `open`, `read`, `write`, `create`, `unlink`
+- Penanganan nama dan isi file modular berdasarkan area.
+- Area `7sref` hanya mendukung file yang bisa direferensikan dari area lain.
+
+---
+
+## 🚫 Batasan
+
+- File di area `7sref` bersifat **read-only**.
+- Belum mendukung operasi direktori (`mkdir`, `rmdir`, `rename`, dsb).
+- Konflik nama mungkin terjadi pada `metro` jika transformasi tidak ditangani hati-hati.
+- Belum ada sistem validasi pengguna atau proteksi file tingkat lanjut.
+
+---
+
+## 🔧 Instalasi dan Menjalankan
+
+### 1. **Build**
+```bash
+gcc -Wall `pkg-config fuse3 --cflags --libs` maimai_fuse.c -o maimai_fs
